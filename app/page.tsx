@@ -79,9 +79,6 @@ export default function Home() {
             <p className="text-sm font-bold uppercase tracking-[0.2em] text-cyan-200">Featured Projects</p>
             <h2 className="electric-text mt-3 text-4xl font-black tracking-tight text-white">Engineering work with a pulse.</h2>
           </div>
-          <p className="max-w-xl text-base leading-7 text-slate-300">
-            Each page is structured so you can add more images, videos, writeups, and external links from one central data file.
-          </p>
         </div>
         <div className="grid gap-7 md:grid-cols-2 lg:grid-cols-3">
           {projects.map((project) => (
