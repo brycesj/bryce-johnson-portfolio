@@ -2,17 +2,17 @@ export type ProjectMedia = {
   type: "image" | "video";
   src: string;
   alt?: string;
-  caption: string;
+  caption?: string;
   href?: string;
   fit?: "cover" | "contain";
-  aspect?: "standard" | "wide" | "poster";
+  aspect?: "standard" | "wide" | "poster" | "portrait";
 };
 
 export type ProjectSection = {
   eyebrow?: string;
   title: string;
   body: string;
-  layout?: "single" | "paired" | "video-first";
+  layout?: "single" | "paired" | "video-first" | "media-left" | "showcase";
   media?: ProjectMedia[];
 };
 
@@ -33,6 +33,96 @@ export type Project = {
 const sparkLabUrl = "https://spark-lab-nu.vercel.app/";
 
 export const projects: Project[] = [
+  {
+    slug: "pigball-machine",
+    title: "Pigball Machine",
+    subtitle: "Quarter-long electromechanical pinball machine",
+    description:
+      "A pig-themed pinball machine built through iterative mechanical design, sensor circuits, motor drivers, score display logic, audio feedback, and final wooden construction.",
+    coverImage: "/projects/pigball-machine/final-machine.jpeg",
+    coverAlt: "Final pink Pigball pinball machine on a lab bench",
+    tags: ["Arduino", "Electromechanical Design", "Sensors", "Motors", "CAD"],
+    accent: "from-pink-500 to-cyan-500",
+    highlights: [
+      "Built from cardboard spacing mockup to painted birch and PLA final assembly",
+      "Integrated optical scoring sensors, display logic, audio feedback, and motor control",
+      "Used solenoids, a servo gate, and a bidirectional DC motor to create interactive gameplay"
+    ],
+    sections: [
+      {
+        eyebrow: "Prototype",
+        title: "Cardboard Casing and First Workable Demo",
+        body:
+          "The first version used a cardboard casing so we could physically understand the spacing between the plunger path, flippers, display, motorized pig nose, sensors, and wiring before committing to wood. This helped us realize the enclosure needed more internal height for the electronics and ball-routing pieces.\n\nThe wiring shown here was the first workable demo. It grew out of the early module work: testing motor behavior, proving the basic button-controlled state machine, and validating that the subsystems could eventually be combined into one pinball machine.",
+        layout: "media-left",
+        media: [
+          {
+            type: "image",
+            src: "/projects/pigball-machine/prototyping-internal.jpeg",
+            alt: "Cardboard Pigball prototype with breadboards and wiring",
+            caption: "First workable demo in the cardboard spacing prototype"
+          }
+        ]
+      },
+      {
+        eyebrow: "Integration",
+        title: "Refined Internal Electronics",
+        body:
+          "This was the more refined version of the machine after the electronics had been moved into the wooden structure. The internal layout brought together the Arduino Mega, power supply, solenoid driver circuits for the flippers, optical scoring sensor circuits, seven-segment display driver, buzzer feedback, servo gate, and DC motor control.\n\nThe scoring circuit came from the sensor module work: IR emitter and receiver pairs were conditioned through op-amps, filtering, peak detection, buffering, and a hysteretic comparator so the Arduino could read reliable scoring events.",
+        layout: "media-left",
+        media: [
+          {
+            type: "image",
+            src: "/projects/pigball-machine/refined-internal.jpeg",
+            alt: "Refined internal Pigball wiring inside the wooden machine",
+            caption: "Refined internal layout with the main electronics installed"
+          }
+        ]
+      },
+      {
+        eyebrow: "Final Build",
+        title: "Painted Playfield and Mechanical Assembly",
+        body:
+          "The final machine used laser-cut quarter-inch birch with tab-and-slot construction, glued joints, PLA ramps and obstacles, sensor mounts, flippers, and a transparent acrylic shield to keep the ball inside the playfield. The painted pink exterior tied the technical build back to the pig theme.\n\nA major final improvement was replacing the single-direction DC motor circuit with an L298 dual H-bridge and boost converter. That let the Arduino reverse the pig nose motor based on scoring inputs while still accounting for the driver voltage drop.",
+        layout: "media-left",
+        media: [
+          {
+            type: "image",
+            src: "/projects/pigball-machine/final-machine.jpeg",
+            alt: "Final pink Pigball machine exterior",
+            caption: "Final painted Pigball machine with playfield, plunger, flippers, and obstacles"
+          }
+        ]
+      },
+      {
+        eyebrow: "Demo",
+        title: "Pigball Machine Video Demonstration",
+        body: "",
+        layout: "showcase",
+        media: [
+          {
+            type: "video",
+            src: "https://drive.google.com/file/d/19n1S8zO6vHbnQR65-Gr050gjKB7IQTQU/view?usp=sharing"
+          }
+        ]
+      },
+      {
+        eyebrow: "Complete",
+        title: "Finished Quarter-Long Project",
+        body: "",
+        layout: "showcase",
+        media: [
+          {
+            type: "image",
+            src: "/projects/pigball-machine/bryce-with-pigball.jpeg",
+            alt: "Bryce standing beside the finished Pigball machine",
+            aspect: "portrait",
+            fit: "contain"
+          }
+        ]
+      }
+    ]
+  },
   {
     slug: "line-following-robot",
     title: "Line Following Robot",

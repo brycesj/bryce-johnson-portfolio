@@ -58,22 +58,53 @@ export function ProjectPageTemplate({ project }: ProjectPageTemplateProps) {
       </section>
 
       <div className="mx-auto max-w-7xl space-y-14 px-5 pb-20">
-        {project.sections.map((section) => (
-          <section key={section.title} className="rounded-3xl border border-cyan-300/15 bg-slate-900/72 p-6 shadow-soft shadow-cyan-950/20 sm:p-8">
-            {section.eyebrow ? (
-              <p className="text-sm font-bold uppercase tracking-[0.2em] text-cyan-200">{section.eyebrow}</p>
-            ) : null}
-            <h2 className="mt-3 text-3xl font-black tracking-tight text-white">{section.title}</h2>
-            <div className="mt-4 max-w-4xl space-y-4 whitespace-pre-line text-base leading-8 text-slate-300">
-              {section.body}
-            </div>
-            {section.media?.length ? (
-              <div className="mt-8">
-                <ProjectGallery media={section.media} columns={section.layout === "paired" ? "two" : "auto"} />
-              </div>
-            ) : null}
-          </section>
-        ))}
+        {project.sections.map((section) => {
+          const mediaLeft = section.layout === "media-left" && section.media?.length;
+          const showcase = section.layout === "showcase" && section.media?.length;
+
+          return (
+            <section key={section.title} className="rounded-3xl border border-cyan-300/15 bg-slate-900/72 p-6 shadow-soft shadow-cyan-950/20 sm:p-8">
+              {showcase ? (
+                <>
+                  {section.title ? (
+                    <h2 className="mb-7 text-center text-3xl font-black tracking-tight text-white">{section.title}</h2>
+                  ) : null}
+                  <ProjectGallery media={section.media ?? []} columns="auto" variant="showcase" />
+                </>
+              ) : mediaLeft ? (
+                <div className="grid gap-8 lg:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)] lg:items-center">
+                  <ProjectGallery media={section.media ?? []} columns="auto" />
+                  <div>
+                    {section.eyebrow ? (
+                      <p className="text-sm font-bold uppercase tracking-[0.2em] text-cyan-200">{section.eyebrow}</p>
+                    ) : null}
+                    <h2 className="mt-3 text-3xl font-black tracking-tight text-white">{section.title}</h2>
+                    <div className="mt-4 space-y-4 whitespace-pre-line text-base leading-8 text-slate-300">
+                      {section.body}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {section.eyebrow ? (
+                    <p className="text-sm font-bold uppercase tracking-[0.2em] text-cyan-200">{section.eyebrow}</p>
+                  ) : null}
+                  <h2 className="mt-3 text-3xl font-black tracking-tight text-white">{section.title}</h2>
+                  {section.body ? (
+                    <div className="mt-4 max-w-4xl space-y-4 whitespace-pre-line text-base leading-8 text-slate-300">
+                      {section.body}
+                    </div>
+                  ) : null}
+                  {section.media?.length ? (
+                    <div className="mt-8">
+                      <ProjectGallery media={section.media} columns={section.layout === "paired" ? "two" : "auto"} />
+                    </div>
+                  ) : null}
+                </>
+              )}
+            </section>
+          );
+        })}
       </div>
     </main>
   );
