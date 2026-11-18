@@ -1,28 +1,52 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { Project } from "@/data/projects";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { Project, ProjectMedia } from "@/data/projects";
 import { experience } from "@/data/experience";
 import { DesktopIcon } from "./DesktopIcon";
 import { MacWindow, type WindowGeometry } from "./MacWindow";
 
-type AppId = "welcome" | "resume" | "projects" | "experience" | "about" | "map" | "links" | "disk" | "help";
+type AppId = "welcome" | "notepad" | "resume" | "projects" | "experience" | "about" | "map" | "links" | "disk" | "help";
 
 type WindowState = {
-  id: AppId;
+  id: string;
   title: string;
   geometry: WindowGeometry;
   zIndex: number;
 };
 
+type SoundCue = {
+  run: number;
+  videoId: string;
+  duration: number;
+  volume: number;
+};
+
+const bootSoundVideo = "Z9w08Pov-yA";
+const applicationSoundVideo = "nUsHboYC5zc";
+const defaultNoteText = "Welcome to BryceOS! Feel free to click around and explore what I have to offer.";
+
+const sendYouTubeCommand = (frame: HTMLIFrameElement | null, func: string, args: unknown[] = []) => {
+  frame?.contentWindow?.postMessage(JSON.stringify({ event: "command", func, args }), "https://www.youtube-nocookie.com");
+};
+
+const projectWindowId = (slug: string) => `project:${slug}`;
+
+const projectWindowGeometry = (projectIndex: number): WindowGeometry => ({
+  x: 88 + (projectIndex % 3) * 42,
+  y: 54 + (projectIndex % 3) * 34,
+  width: 860,
+  height: 680
+});
+
 const appMeta: Record<AppId, { title: string; geometry: WindowGeometry }> = {
   welcome: { title: "Welcome to BryceOS", geometry: { x: 92, y: 78, width: 510, height: 330 } },
+  notepad: { title: "Note Pad", geometry: { x: 620, y: 88, width: 390, height: 360 } },
   resume: { title: "Bryce Johnson - Resume", geometry: { x: 150, y: 62, width: 720, height: 640 } },
   projects: { title: "Engineering Projects", geometry: { x: 175, y: 95, width: 760, height: 560 } },
   experience: { title: "Work Experience", geometry: { x: 230, y: 82, width: 690, height: 570 } },
-  about: { title: "About Bryce", geometry: { x: 115, y: 105, width: 720, height: 540 } },
+  about: { title: "About Bryce", geometry: { x: 115, y: 70, width: 860, height: 640 } },
   map: { title: "Map", geometry: { x: 195, y: 76, width: 700, height: 570 } },
   links: { title: "Internet Shortcuts", geometry: { x: 270, y: 120, width: 520, height: 360 } },
   disk: { title: "Macintosh HD", geometry: { x: 145, y: 88, width: 660, height: 470 } },
@@ -52,15 +76,33 @@ const clampGeometry = (geometry: WindowGeometry) => {
 };
 
 export function BryceOS({ projects }: { projects: Project[] }) {
-  const [bootState, setBootState] = useState<"booting" | "ready" | "off">("booting");
+  const [bootState, setBootState] = useState<"booting" | "ready" | "off">("off");
   const [selectedIcon, setSelectedIcon] = useState<string | null>(null);
   const [windows, setWindows] = useState<WindowState[]>([]);
   const [menu, setMenu] = useState<string | null>(null);
   const [clock, setClock] = useState("");
+  const [soundCue, setSoundCue] = useState<SoundCue | null>(null);
+  const [noteText, setNoteText] = useState(defaultNoteText);
+  const clickSoundRef = useRef<HTMLAudioElement | null>(null);
 
   const highestZ = useMemo(() => Math.max(10, ...windows.map((item) => item.zIndex)), [windows]);
 
-  const openApp = useCallback((id: AppId) => {
+  const playSound = useCallback((videoId: string, duration: number, volume: number) => {
+    setSoundCue((current) => ({ run: (current?.run ?? 0) + 1, videoId, duration, volume }));
+  }, []);
+
+  const playClickSound = useCallback(() => {
+    const clickSound = clickSoundRef.current;
+    if (!clickSound) return;
+    clickSound.volume = 0.25;
+    clickSound.currentTime = 0;
+    void clickSound.play().catch(() => undefined);
+  }, []);
+
+  const openApp = useCallback((id: AppId, withSound = true) => {
+    if (withSound && !windows.some((item) => item.id === id)) {
+      window.setTimeout(() => playSound(applicationSoundVideo, 2600, 18), 230);
+    }
     setMenu(null);
     setSelectedIcon(id);
     setWindows((current) => {
@@ -70,15 +112,47 @@ export function BryceOS({ projects }: { projects: Project[] }) {
       const meta = appMeta[id];
       return [...current, { id, title: meta.title, geometry: clampGeometry(meta.geometry), zIndex: nextZ }];
     });
-  }, []);
+  }, [playSound, windows]);
+
+  const openProject = useCallback((project: Project) => {
+    const id = projectWindowId(project.slug);
+    if (!windows.some((item) => item.id === id)) {
+      window.setTimeout(() => playSound(applicationSoundVideo, 2600, 18), 230);
+    }
+    setMenu(null);
+    setSelectedIcon(project.slug);
+    setWindows((current) => {
+      const existing = current.find((item) => item.id === id);
+      const nextZ = Math.max(10, ...current.map((item) => item.zIndex)) + 1;
+      if (existing) return current.map((item) => (item.id === id ? { ...item, zIndex: nextZ } : item));
+      const projectIndex = Math.max(0, projects.findIndex((item) => item.slug === project.slug));
+      return [...current, {
+        id,
+        title: `${project.title} — Project File`,
+        geometry: clampGeometry(projectWindowGeometry(projectIndex)),
+        zIndex: nextZ
+      }];
+    });
+  }, [playSound, projects, windows]);
 
   useEffect(() => {
+    if (bootState !== "booting") return;
     const bootTimer = window.setTimeout(() => {
       setBootState("ready");
-      openApp("welcome");
+      openApp("welcome", false);
+      openApp("notepad", false);
     }, 950);
     return () => window.clearTimeout(bootTimer);
-  }, [openApp]);
+  }, [bootState, openApp]);
+
+  useEffect(() => {
+    if (!soundCue) return;
+    const activeRun = soundCue.run;
+    const soundTimer = window.setTimeout(() => {
+      setSoundCue((current) => current?.run === activeRun ? null : current);
+    }, soundCue.duration);
+    return () => window.clearTimeout(soundTimer);
+  }, [soundCue]);
 
   useEffect(() => {
     const updateClock = () => setClock(new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date()));
@@ -95,7 +169,7 @@ export function BryceOS({ projects }: { projects: Project[] }) {
     return () => window.removeEventListener("keydown", closeMenus);
   }, []);
 
-  const focusWindow = (id: AppId) => {
+  const focusWindow = (id: string) => {
     setWindows((current) => {
       const nextZ = Math.max(10, ...current.map((item) => item.zIndex)) + 1;
       return current.map((item) => (item.id === id ? { ...item, zIndex: nextZ } : item));
@@ -106,7 +180,15 @@ export function BryceOS({ projects }: { projects: Project[] }) {
     setWindows((current) =>
       current.map((item, index) => ({
         ...item,
-        geometry: clampGeometry({ ...appMeta[item.id].geometry, x: appMeta[item.id].geometry.x + index * 12, y: appMeta[item.id].geometry.y + index * 10 })
+        geometry: clampGeometry((() => {
+          if (item.id.startsWith("project:")) {
+            const projectIndex = projects.findIndex((project) => projectWindowId(project.slug) === item.id);
+            const base = projectWindowGeometry(Math.max(0, projectIndex));
+            return { ...base, x: base.x + index * 12, y: base.y + index * 10 };
+          }
+          const base = appMeta[item.id as AppId].geometry;
+          return { ...base, x: base.x + index * 12, y: base.y + index * 10 };
+        })())
       }))
     );
     setMenu(null);
@@ -115,47 +197,109 @@ export function BryceOS({ projects }: { projects: Project[] }) {
   const restart = () => {
     setMenu(null);
     setWindows([]);
+    setNoteText(defaultNoteText);
+    window.setTimeout(() => playSound(bootSoundVideo, 6500, 26), 230);
     setBootState("booting");
-    window.setTimeout(() => {
-      setBootState("ready");
-      openApp("welcome");
-    }, 950);
   };
+
+  const shutDown = () => {
+    setMenu(null);
+    setWindows([]);
+    setSoundCue(null);
+    setBootState("off");
+  };
+
+  const soundPlayer = soundCue ? (
+    <iframe
+      key={`${soundCue.videoId}-${soundCue.run}`}
+      className="system-sound-player"
+      src={`https://www.youtube-nocookie.com/embed/${soundCue.videoId}?autoplay=1&enablejsapi=1&controls=0&disablekb=1&fs=0&playsinline=1&rel=0&mute=0`}
+      title="BryceOS system sound"
+      allow="autoplay; encrypted-media"
+      referrerPolicy="strict-origin-when-cross-origin"
+      aria-hidden="true"
+      tabIndex={-1}
+      onLoad={(event) => {
+        const frame = event.currentTarget;
+        const applyVolume = () => sendYouTubeCommand(frame, "setVolume", [soundCue.volume]);
+        applyVolume();
+        window.setTimeout(applyVolume, 180);
+        window.setTimeout(applyVolume, 450);
+      }}
+    />
+  ) : null;
+
+  const clickSoundPlayer = (
+    <audio
+      ref={clickSoundRef}
+      src="/sounds/mouse-click.webm?v=1"
+      preload="auto"
+      aria-hidden="true"
+    />
+  );
 
   if (bootState === "off") {
     return (
-      <main className="power-screen">
-        <button type="button" className="power-button" onClick={restart} aria-label="Power on BryceOS">
-          <span aria-hidden="true">⏻</span>
-          Power On
-        </button>
-      </main>
+      <>
+        {clickSoundPlayer}
+        <main className="power-screen select-user-screen">
+          <section className="select-user-panel" aria-labelledby="select-user-title">
+            <p className="select-user-kicker">BryceOS 7.0</p>
+            <h1 id="select-user-title">Select User</h1>
+            <button type="button" className="user-account" onClick={() => { playClickSound(); restart(); }} aria-label="Select Bryce Johnson and start BryceOS">
+              <span className="user-account__portrait" aria-hidden="true">
+                <Image src="/profile/bryce-johnson.jpeg" alt="" fill priority sizes="148px" />
+              </span>
+              <strong>Bryce Johnson</strong>
+              <span className="user-account__action">Select User</span>
+            </button>
+            <p className="select-user-hint">Click the profile to enter.</p>
+          </section>
+        </main>
+      </>
     );
   }
 
+  const finishStartup = () => {
+    setBootState("ready");
+    openApp("welcome", false);
+    openApp("notepad", false);
+  };
+
   if (bootState === "booting") {
     return (
-      <main className="boot-screen" aria-live="polite">
-        <div className="boot-computer" aria-hidden="true"><span>:-)</span></div>
-        <h1>Welcome to BryceOS</h1>
-        <div className="boot-progress"><span /></div>
-        <button type="button" onClick={() => { setBootState("ready"); openApp("welcome"); }}>Skip Startup</button>
-      </main>
+      <>
+        {clickSoundPlayer}
+        {soundPlayer}
+        <main className="boot-screen" aria-live="polite">
+          <div className="boot-computer" aria-hidden="true"><span>:-)</span></div>
+          <h1>Welcome, Bryce Johnson</h1>
+          <div className="boot-progress"><span /></div>
+          <button type="button" onClick={() => { playClickSound(); finishStartup(); }}>Skip Startup</button>
+        </main>
+      </>
     );
   }
 
   return (
-    <main className="bryce-os" onPointerDown={(event) => {
-      if (!(event.target as HTMLElement).closest(".menu-bar")) setMenu(null);
-      if (!(event.target as HTMLElement).closest(".desktop-icon, .mac-window")) setSelectedIcon(null);
-    }}>
+    <>
+      {clickSoundPlayer}
+      {soundPlayer}
+      <main className="bryce-os" onClick={(event) => {
+        const target = event.target as HTMLElement;
+        if (target.closest("button:not(:disabled), a, [role='button']")) playClickSound();
+      }} onPointerDown={(event) => {
+        const target = event.target as HTMLElement;
+        if (!target.closest(".menu-bar")) setMenu(null);
+        if (!target.closest(".desktop-icon, .mac-window")) setSelectedIcon(null);
+      }}>
       <nav className="menu-bar" aria-label="BryceOS menu bar">
         <button type="button" className="rainbow-mark" aria-label="BryceOS home" onClick={() => openApp("welcome")}><span /></button>
         {[
-          { label: "File", items: [["Open Resume", () => openApp("resume")], ["Open Projects", () => openApp("projects")], ["Download Resume", () => window.open("/resume/BryceJohnson_Resume_10_2026.pdf", "_blank")]] },
+          { label: "File", items: [["Open Note Pad", () => openApp("notepad")], ["Open Resume", () => openApp("resume")], ["Open Projects", () => openApp("projects")], ["Download Resume", () => window.open("/resume/BryceJohnson_EE_ML.pdf", "_blank")]] },
           { label: "Edit", items: [["Select All Icons", () => setSelectedIcon("all")], ["Close Active Window", () => setWindows((current) => current.filter((item) => item.zIndex !== highestZ))]] },
           { label: "View", items: [["Arrange Icons", () => setSelectedIcon(null)], ["Reset Window Positions", resetWindows]] },
-          { label: "Special", items: [["About BryceOS", () => openApp("welcome")], ["Restart", restart], ["Shut Down", () => setBootState("off")]] },
+          { label: "Special", items: [["About BryceOS", () => openApp("welcome")], ["Restart", restart], ["Shut Down", shutDown]] },
           { label: "Help", items: [["How to Navigate", () => openApp("help")], ["Contact", () => openApp("links")]] }
         ].map(({ label, items }) => (
           <div className="menu-group" key={label}>
@@ -175,6 +319,11 @@ export function BryceOS({ projects }: { projects: Project[] }) {
       </nav>
 
       <section className="desktop" aria-label="BryceOS desktop">
+        <div className="desktop-wallpaper" aria-hidden="true">
+          <div className="case-vents case-vents--left">{Array.from({ length: 14 }, (_, index) => <span key={index} />)}</div>
+          <div className="wallpaper-apple"><span className="apple-body" /><span className="apple-leaf" /><span className="apple-bite" /></div>
+          <div className="case-vents case-vents--right">{Array.from({ length: 14 }, (_, index) => <span key={index} />)}</div>
+        </div>
         <div className="desktop-icons">
           {desktopApps.map((app) => (
             <DesktopIcon key={app.id} {...app} selected={selectedIcon === app.id || selectedIcon === "all"} onSelect={() => setSelectedIcon(app.id)} onOpen={() => openApp(app.id)} />
@@ -196,15 +345,35 @@ export function BryceOS({ projects }: { projects: Project[] }) {
             onFocus={() => focusWindow(item.id)}
             onGeometryChange={(geometry) => setWindows((current) => current.map((windowItem) => windowItem.id === item.id ? { ...windowItem, geometry } : windowItem))}
           >
-            <WindowContent id={item.id} projects={projects} openApp={openApp} />
+            <WindowContent id={item.id} projects={projects} openApp={openApp} openProject={openProject} noteText={noteText} setNoteText={setNoteText} />
           </MacWindow>
         ))}
       </section>
-    </main>
+      </main>
+    </>
   );
 }
 
-function WindowContent({ id, projects, openApp }: { id: AppId; projects: Project[]; openApp: (id: AppId) => void }) {
+function WindowContent({
+  id,
+  projects,
+  openApp,
+  openProject,
+  noteText,
+  setNoteText
+}: {
+  id: string;
+  projects: Project[];
+  openApp: (id: AppId) => void;
+  openProject: (project: Project) => void;
+  noteText: string;
+  setNoteText: (value: string) => void;
+}) {
+  if (id.startsWith("project:")) {
+    const project = projects.find((item) => projectWindowId(item.slug) === id);
+    return project ? <ProjectWindow project={project} /> : <div className="project-missing">Project file not found.</div>;
+  }
+
   if (id === "welcome") {
     return (
       <div className="welcome-panel">
@@ -223,17 +392,33 @@ function WindowContent({ id, projects, openApp }: { id: AppId; projects: Project
     );
   }
 
+  if (id === "notepad") {
+    return (
+      <div className="notepad-window">
+        <label htmlFor="bryceos-note">Personal note</label>
+        <textarea
+          id="bryceos-note"
+          value={noteText}
+          onChange={(event) => setNoteText(event.target.value)}
+          spellCheck="true"
+          aria-label="Editable BryceOS welcome note"
+        />
+        <p>{noteText.length} characters · Resets on restart</p>
+      </div>
+    );
+  }
+
   if (id === "projects") {
     return (
       <div className="finder-view">
         <div className="finder-info">{projects.length} items <span>Engineering Portfolio</span></div>
         <div className="finder-grid">
           {projects.map((project) => (
-            <Link className="finder-item" href={`/projects/${project.slug}`} key={project.slug}>
+            <button className="finder-item" type="button" onClick={() => openProject(project)} key={project.slug}>
               <span className="mini-folder" aria-hidden="true" />
               <strong>{project.title}</strong>
               <small>{project.subtitle}</small>
-            </Link>
+            </button>
           ))}
         </div>
       </div>
@@ -244,13 +429,13 @@ function WindowContent({ id, projects, openApp }: { id: AppId; projects: Project
     return (
       <div className="resume-window">
         <div className="document-toolbar">
-          <a className="mac-button is-default" href="/resume/BryceJohnson_Resume_10_2026.pdf" download>Download</a>
-          <a className="mac-button" href="/resume/BryceJohnson_Resume_10_2026.pdf" target="_blank" rel="noreferrer">Open PDF</a>
+          <a className="mac-button is-default" href="/resume/BryceJohnson_EE_ML.pdf" download>Download</a>
+          <a className="mac-button" href="/resume/BryceJohnson_EE_ML.pdf" target="_blank" rel="noreferrer">Open PDF</a>
           <button type="button" className="mac-button" onClick={() => window.print()}>Print</button>
         </div>
         <div className="resume-preview">
           <Image
-            src="/resume/BryceJohnson_Resume_10_2026-preview.png"
+            src="/resume/BryceJohnson_EE_ML-preview.png"
             alt="Preview of Bryce Johnson's one-page resume"
             width={1224}
             height={1584}
@@ -266,7 +451,10 @@ function WindowContent({ id, projects, openApp }: { id: AppId; projects: Project
       <div className="experience-list">
         {experience.map((job) => (
           <article className="experience-card" key={job.company}>
-            <div><h3>{job.company}</h3><p>{job.role}</p></div>
+            <div>
+              <h3><a href={job.website} target="_blank" rel="noreferrer">{job.company}<span aria-hidden="true"> ↗</span></a></h3>
+              <p>{job.role}</p>
+            </div>
             <div className="experience-meta"><strong>{job.dates}</strong><span>{job.location}</span></div>
             <ul>{job.bullets.map((bullet) => <li key={bullet}>{bullet}</li>)}</ul>
           </article>
@@ -276,18 +464,7 @@ function WindowContent({ id, projects, openApp }: { id: AppId; projects: Project
   }
 
   if (id === "about") {
-    return (
-      <div className="about-window">
-        <Image src="/images/professional-image.jpeg" alt="Bryce Johnson" width={280} height={340} className="about-photo" />
-        <div>
-          <p className="eyebrow">About Me</p>
-          <h2>Engineer, builder, and curious teammate.</h2>
-          <p>I’m an Electrical Engineering student at UC San Diego interested in embedded systems, circuits, robotics, and hands-on hardware development.</p>
-          <p>I played two years as a community-college baseball pitcher, recently picked up rock climbing, and visited all 30 Major League Baseball stadiums by age 20.</p>
-          <Link href="/about" className="mac-button is-default">Open full biography</Link>
-        </div>
-      </div>
-    );
+    return <AboutCarousel />;
   }
 
   if (id === "map") {
@@ -332,6 +509,7 @@ function WindowContent({ id, projects, openApp }: { id: AppId; projects: Project
         <button onClick={() => openApp("resume")}><span className="mini-document" />Resume.pdf</button>
         <button onClick={() => openApp("map")}><span className="mini-document" />Map</button>
         <button onClick={() => openApp("links")}><span className="mini-document" />Internet</button>
+        <button onClick={() => openApp("notepad")}><span className="mini-document" />Note Pad</button>
       </div>
     );
   }
@@ -347,5 +525,148 @@ function WindowContent({ id, projects, openApp }: { id: AppId; projects: Project
         <dt>Keyboard</dt><dd>Press Escape to close an open menu. Every icon and control is keyboard focusable.</dd>
       </dl>
     </div>
+  );
+}
+
+const aboutSlides = [
+  {
+    id: "intro",
+    eyebrow: "A little more human",
+    title: "Beyond the equations",
+    body: "Believe it or not, beyond Fourier transforms and neural networks, I also have a personality! Feel free to swipe through to learn more about who I am outside of school and academics.",
+    images: [
+      { src: "/about/bryce-europe.jpeg", alt: "Bryce overlooking the coast in Santorini, Greece" }
+    ]
+  },
+  {
+    id: "travel",
+    eyebrow: "Side quest 01",
+    title: "I love to travel!",
+    body: "A little fun fact about me is that I’ve visited all 30 MLB ballparks that currently host baseball teams. As a result, I’ve passed through a large majority of the U.S. states, and I’ve just recently started traveling overseas. I find that the best part of traveling isn’t the guided tours... it’s the side quests that give you a new perspective on how others live their lives abroad.",
+    images: [
+      { src: "/about/bryce-colosseum.jpeg", alt: "Bryce visiting the Colosseum at night" },
+      { src: "/about/coronado-landscape.jpg", alt: "A coastal landscape photographed during Bryce’s travels" }
+    ]
+  },
+  {
+    id: "food",
+    eyebrow: "Side quest 02",
+    title: "I like food—a lot.",
+    body: "I like food, and I like it a lot. I like to make it, eat it, and admire it. It’s the main reason that Beli is the only social media app I own. One of my favorite cuisines of all time is Japanese food, as featured in the image above. It’s from a place called DASHI in San Diego, CA. I highly recommend it.",
+    images: [
+      { src: "/about/food.jpg", alt: "A Japanese meal at DASHI in San Diego" }
+    ]
+  }
+];
+
+function AboutCarousel() {
+  const [activePage, setActivePage] = useState(0);
+  const slide = aboutSlides[activePage];
+  const goBack = () => setActivePage((current) => (current - 1 + aboutSlides.length) % aboutSlides.length);
+  const goForward = () => setActivePage((current) => (current + 1) % aboutSlides.length);
+
+  return (
+    <section className="about-carousel" aria-label="About Bryce slideshow">
+      <div className={`about-slide about-slide--${slide.id}`} key={slide.id} aria-live="polite">
+        <div className={`about-slide__media ${slide.images.length > 1 ? "about-slide__media--pair" : ""}`}>
+          {slide.images.map((photo) => (
+            <div className="about-slide__photo" key={photo.src}>
+              <Image src={photo.src} alt={photo.alt} fill sizes="(max-width: 720px) 100vw, 520px" />
+            </div>
+          ))}
+        </div>
+        <div className="about-slide__copy">
+          <p className="eyebrow">{slide.eyebrow}</p>
+          <h2>{slide.title}</h2>
+          <p>{slide.body}</p>
+        </div>
+      </div>
+
+      <nav className="about-carousel__nav" aria-label="About page controls">
+        <button type="button" className="about-carousel__arrow" onClick={goBack} aria-label="Previous About page">
+          <span aria-hidden="true">←</span>
+        </button>
+        <div className="about-carousel__position">
+          <span>{activePage + 1} of {aboutSlides.length}</span>
+          <div className="about-carousel__dots" aria-hidden="true">
+            {aboutSlides.map((item, index) => <i className={index === activePage ? "is-active" : ""} key={item.id} />)}
+          </div>
+        </div>
+        <button type="button" className="about-carousel__arrow" onClick={goForward} aria-label="Next About page">
+          <span aria-hidden="true">→</span>
+        </button>
+      </nav>
+    </section>
+  );
+}
+
+function ProjectWindow({ project }: { project: Project }) {
+  return (
+    <article className="project-window">
+      <header className="project-window__hero">
+        <div className="project-window__cover">
+          <Image src={project.coverImage} alt={project.coverAlt} fill sizes="(max-width: 720px) 100vw, 420px" priority />
+        </div>
+        <div className="project-window__intro">
+          <p className="eyebrow">Engineering Project File</p>
+          <h2>{project.title}</h2>
+          <p className="project-window__subtitle">{project.subtitle}</p>
+          <p>{project.description}</p>
+          <div className="project-window__tags">
+            {project.tags.map((tag) => <span key={tag}>{tag}</span>)}
+          </div>
+          {project.link ? (
+            <a className="mac-button is-default" href={project.link} target="_blank" rel="noreferrer">Visit live project</a>
+          ) : null}
+        </div>
+      </header>
+
+      <section className="project-window__highlights" aria-label="Project highlights">
+        {project.highlights.map((highlight, index) => (
+          <div key={highlight}><strong>{String(index + 1).padStart(2, "0")}</strong><p>{highlight}</p></div>
+        ))}
+      </section>
+
+      <div className="project-window__sections">
+        {project.sections.map((section, sectionIndex) => (
+          <section className="project-section" key={`${section.title}-${sectionIndex}`}>
+            <div className="project-section__heading">
+              {section.eyebrow ? <p className="eyebrow">{section.eyebrow}</p> : null}
+              <h3>{section.title}</h3>
+            </div>
+            {section.body ? <div className="project-section__body">{section.body}</div> : null}
+            {section.media?.length ? (
+              <div className={`project-media-grid ${section.media.length === 1 ? "is-single" : ""}`}>
+                {section.media.map((media, mediaIndex) => (
+                  <ProjectMediaView media={media} key={`${media.src}-${mediaIndex}`} />
+                ))}
+              </div>
+            ) : null}
+          </section>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+function ProjectMediaView({ media }: { media: ProjectMedia }) {
+  const driveMatch = media.src.match(/drive\.google\.com\/file\/d\/([^/]+)/);
+  const driveEmbed = driveMatch ? `https://drive.google.com/file/d/${driveMatch[1]}/preview` : null;
+
+  return (
+    <figure className={`project-media project-media--${media.aspect ?? "standard"} ${media.fit === "contain" ? "is-contain" : ""}`}>
+      <div className="project-media__frame">
+        {media.type === "video" ? (
+          driveEmbed ? (
+            <iframe src={driveEmbed} title={media.caption ?? "Project video"} allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen />
+          ) : (
+            <video controls preload="metadata"><source src={media.src} />Your browser does not support the video tag.</video>
+          )
+        ) : (
+          <Image src={media.src} alt={media.alt ?? media.caption ?? "Project media"} fill sizes="(max-width: 720px) 100vw, 430px" />
+        )}
+      </div>
+      {media.caption ? <figcaption>{media.caption}</figcaption> : null}
+    </figure>
   );
 }
